@@ -1,0 +1,14 @@
+{
+  "buildCommand": "",
+  "outputDirectory": ".",
+  "framework": null,
+  "rewrites": [
+    { "source": "/widget.js", "destination": "/public/widget.js" },
+    { "source": "/", "destination": "/demo.html" }
+  ],
+  "functions": {
+    "api/chat.js": {
+      "maxDuration": 10
+    }
+  }
+}

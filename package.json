@@ -1,0 +1,12 @@
+{
+  "name": "bymilos-chatbot",
+  "version": "1.0.0",
+  "description": "AI chatbot widget powered by Gemini 2.0 Flash",
+  "private": true,
+  "scripts": {
+    "dev": "vercel dev"
+  },
+  "devDependencies": {
+    "vercel": "^37.0.0"
+  }
+}
