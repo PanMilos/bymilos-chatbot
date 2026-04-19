@@ -11,9 +11,13 @@
     position: 'right'
   }, window.chatbotConfig || {});
 
+  var leadApiUrl = cfg.apiUrl.replace('/api/chat', '/api/lead');
+
   var messages = [];
   var isOpen = false;
   var isTyping = false;
+  var botResponseCount = 0;
+  var leadSubmitted = false;
 
   /* ─── Styles ─── */
   var style = document.createElement('style');
@@ -22,7 +26,7 @@
     '#bm-chat-btn{position:fixed;bottom:24px;' + cfg.position + ':24px;width:56px;height:56px;border-radius:50%;background:' + cfg.accentColor + ';border:none;cursor:pointer;box-shadow:0 4px 20px rgba(0,0,0,.25);display:flex;align-items:center;justify-content:center;z-index:9999;transition:transform .2s,box-shadow .2s}',
     '#bm-chat-btn:hover{transform:scale(1.08);box-shadow:0 6px 28px rgba(0,0,0,.32)}',
     '#bm-chat-btn svg{transition:transform .25s}',
-    '#bm-chat-box{position:fixed;bottom:92px;' + cfg.position + ':24px;width:360px;max-width:calc(100vw - 32px);height:520px;max-height:calc(100vh - 120px);border-radius:16px;background:#fff;box-shadow:0 8px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:9998;transform:scale(.92) translateY(16px);opacity:0;pointer-events:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .18s}',
+    '#bm-chat-box{position:fixed;bottom:92px;' + cfg.position + ':24px;width:360px;max-width:calc(100vw - 32px);height:540px;max-height:calc(100vh - 120px);border-radius:16px;background:#fff;box-shadow:0 8px 40px rgba(0,0,0,.18);display:flex;flex-direction:column;z-index:9998;transform:scale(.92) translateY(16px);opacity:0;pointer-events:none;transition:transform .22s cubic-bezier(.34,1.56,.64,1),opacity .18s}',
     '#bm-chat-box.bm-open{transform:scale(1) translateY(0);opacity:1;pointer-events:all}',
     '#bm-chat-head{background:' + cfg.primaryColor + ';border-radius:16px 16px 0 0;padding:14px 18px;display:flex;align-items:center;gap:10px}',
     '#bm-chat-head .bm-avatar{width:36px;height:36px;border-radius:50%;background:' + cfg.accentColor + ';display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}',
@@ -51,6 +55,19 @@
     '#bm-chat-send:hover{background:' + cfg.primaryColor + '}',
     '#bm-chat-send:active{transform:scale(.93)}',
     '#bm-chat-send:disabled{opacity:.45;cursor:not-allowed;transform:none}',
+    /* Lead form */
+    '#bm-lead-panel{padding:12px 14px;border-top:1px solid #e8edf2;background:#f8faff;display:none;flex-direction:column;gap:8px}',
+    '#bm-lead-panel.bm-visible{display:flex}',
+    '#bm-lead-panel .bm-lead-title{font-size:12px;font-weight:600;color:' + cfg.primaryColor + ';text-transform:uppercase;letter-spacing:.4px}',
+    '#bm-lead-panel .bm-lead-row{display:flex;gap:6px}',
+    '#bm-lead-panel input{flex:1;border:1.5px solid #dde3ea;border-radius:8px;padding:7px 10px;font-size:13px;color:#1a2e4a;outline:none;transition:border-color .15s;min-width:0}',
+    '#bm-lead-panel input:focus{border-color:' + cfg.accentColor + '}',
+    '#bm-lead-panel input::placeholder{color:#aab4be}',
+    '#bm-lead-submit{padding:7px 14px;border-radius:8px;background:' + cfg.accentColor + ';color:#fff;border:none;cursor:pointer;font-size:13px;font-weight:600;white-space:nowrap;transition:background .15s}',
+    '#bm-lead-submit:hover{background:' + cfg.primaryColor + '}',
+    '#bm-lead-submitted{font-size:13px;color:#2d6cdf;text-align:center;padding:4px 0}',
+    '#bm-lead-dismiss{background:none;border:none;cursor:pointer;font-size:11px;color:#aab4be;text-align:right;padding:0;align-self:flex-end;transition:color .15s}',
+    '#bm-lead-dismiss:hover{color:#667}',
     '#bm-chat-footer{text-align:center;padding:6px 0 10px;font-size:11px;color:#aab4be}'
   ].join('');
   document.head.appendChild(style);
@@ -74,6 +91,18 @@
         '</button>',
       '</div>',
       '<div id="bm-chat-msgs"></div>',
+      '<div id="bm-lead-panel">',
+        '<div style="display:flex;align-items:center;justify-content:space-between">',
+          '<span class="bm-lead-title">📩 Zanechat kontakt</span>',
+          '<button id="bm-lead-dismiss">Zavřít ✕</button>',
+        '</div>',
+        '<div class="bm-lead-row">',
+          '<input id="bm-lead-name" type="text" placeholder="Vaše jméno" autocomplete="name">',
+          '<input id="bm-lead-email" type="email" placeholder="Email" autocomplete="email">',
+          '<button id="bm-lead-submit">Odeslat</button>',
+        '</div>',
+        '<div id="bm-lead-submitted" style="display:none">✅ Díky! Miloš se vám ozve.</div>',
+      '</div>',
       '<form id="bm-chat-form">',
         '<textarea id="bm-chat-input" placeholder="Napište zprávu…" rows="1" maxlength="800" aria-label="Vaše zpráva"></textarea>',
         '<button id="bm-chat-send" type="submit" aria-label="Odeslat" disabled>',
@@ -92,6 +121,12 @@
   var input = document.getElementById('bm-chat-input');
   var sendBtn = document.getElementById('bm-chat-send');
   var closeBtn = box.querySelector('.bm-close');
+  var leadPanel = document.getElementById('bm-lead-panel');
+  var leadName = document.getElementById('bm-lead-name');
+  var leadEmail = document.getElementById('bm-lead-email');
+  var leadSubmitBtn = document.getElementById('bm-lead-submit');
+  var leadSubmitted = document.getElementById('bm-lead-submitted');
+  var leadDismiss = document.getElementById('bm-lead-dismiss');
 
   /* ─── Helpers ─── */
   function escHtml(s) {
@@ -137,6 +172,12 @@
     input.disabled = val;
   }
 
+  function showLeadPanel() {
+    if (!leadSubmitted && !leadPanel.classList.contains('bm-visible')) {
+      leadPanel.classList.add('bm-visible');
+    }
+  }
+
   /* ─── Open / Close ─── */
   function openChat() {
     isOpen = true;
@@ -155,6 +196,39 @@
     isOpen ? closeChat() : openChat();
   });
   closeBtn.addEventListener('click', closeChat);
+
+  /* ─── Lead panel ─── */
+  leadDismiss.addEventListener('click', function () {
+    leadPanel.classList.remove('bm-visible');
+  });
+
+  leadSubmitBtn.addEventListener('click', function () {
+    var name = leadName.value.trim();
+    var email = leadEmail.value.trim();
+    if (!email) { leadEmail.focus(); return; }
+
+    leadSubmitBtn.disabled = true;
+    leadSubmitBtn.textContent = '...';
+
+    var lastMsg = messages.length > 0 ? messages[messages.length - 1].content : '';
+
+    fetch(leadApiUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name, email: email, message: lastMsg, source: 'chatbot-widget' })
+    })
+      .then(function () {
+        leadName.style.display = 'none';
+        leadEmail.style.display = 'none';
+        leadSubmitBtn.style.display = 'none';
+        leadSubmitted.style.display = 'block';
+        leadSubmitted = true;
+      })
+      .catch(function () {
+        leadSubmitBtn.disabled = false;
+        leadSubmitBtn.textContent = 'Odeslat';
+      });
+  });
 
   /* ─── Auto-resize textarea ─── */
   input.addEventListener('input', function () {
@@ -199,6 +273,11 @@
         var reply = data.message || data.error || 'Ups, něco se pokazilo. Zkuste to znovu.';
         messages.push({ role: 'assistant', content: reply });
         addMessage('assistant', reply);
+        botResponseCount++;
+        // Zobraz lead panel po 2. odpovědi
+        if (botResponseCount >= 2 && !leadSubmitted) {
+          setTimeout(showLeadPanel, 800);
+        }
       })
       .catch(function () {
         hideTyping();

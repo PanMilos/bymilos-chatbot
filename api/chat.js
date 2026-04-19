@@ -11,9 +11,16 @@ Web developer a digitální partner pro živnostníky a malé firmy. Pracuje ryc
 ## Jak odpovídat
 - Krátce a konkrétně. Žádné dlouhé odstavce.
 - Piš česky, přátelsky, jako člověk – ne jako robot.
-- Pokud návštěvník projeví zájem, navrhni mu poslat zprávu nebo zavolat Milošovi.
+- Pokud návštěvník projeví zájem nebo se ptá na ceny/spolupráci, nabídni mu aby zanechal kontakt.
 - Kontakt: milos@bymilos.cz
-- Pokud neznáš odpověď, nasměruj na přímý kontakt.`;
+- Pokud neznáš odpověď, nasměruj na přímý kontakt.
+
+## Sběr kontaktů
+Pokud návštěvník projeví zájem o spolupráci nebo chce být kontaktován, zeptej se na jméno a email.
+Jakmile ti návštěvník sdělí jméno A email, vlož na konec své odpovědi tento tag (uživatel ho neuvidí):
+[LEAD:name=JMÉNO,email=EMAIL]
+Příklad: pokud řekne "Jsem Jan, email jan@firma.cz" → přidej [LEAD:name=Jan,email=jan@firma.cz]
+Tag přidej pouze jednou, až když máš obě hodnoty.`;
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -61,8 +68,33 @@ export default async function handler(req, res) {
       return res.status(geminiRes.status).json({ error: data.error?.message || 'Chyba Gemini API' });
     }
 
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+    let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return res.status(500).json({ error: 'Prázdná odpověď od Gemini' });
+
+    // Detekce a uložení leadu z konverzace
+    const leadMatch = text.match(/\[LEAD:name=([^,\]]+),email=([^\]]+)\]/);
+    if (leadMatch && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+      const leadName = leadMatch[1].trim();
+      const leadEmail = leadMatch[2].trim();
+      // Uložit lead do Supabase (fire & forget)
+      fetch(`${process.env.SUPABASE_URL}/rest/v1/leads`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${process.env.SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal'
+        },
+        body: JSON.stringify({
+          name: leadName,
+          email: leadEmail,
+          message: messages[messages.length - 1]?.content || '',
+          source: 'chatbot'
+        })
+      }).catch(err => console.error('Lead save error:', err));
+      // Odstranit tag z textu který uvidí uživatel
+      text = text.replace(/\[LEAD:[^\]]+\]/g, '').trim();
+    }
 
     res.json({ message: text });
   } catch (err) {
