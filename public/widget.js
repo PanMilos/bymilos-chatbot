@@ -125,7 +125,7 @@
   var leadName = document.getElementById('bm-lead-name');
   var leadEmail = document.getElementById('bm-lead-email');
   var leadSubmitBtn = document.getElementById('bm-lead-submit');
-  var leadSubmitted = document.getElementById('bm-lead-submitted');
+  var leadSubmittedEl = document.getElementById('bm-lead-submitted');
   var leadDismiss = document.getElementById('bm-lead-dismiss');
 
   /* ─── Helpers ─── */
@@ -221,7 +221,7 @@
         leadName.style.display = 'none';
         leadEmail.style.display = 'none';
         leadSubmitBtn.style.display = 'none';
-        leadSubmitted.style.display = 'block';
+        leadSubmittedEl.style.display = 'block';
         leadSubmitted = true;
       })
       .catch(function () {

@@ -71,6 +71,9 @@ export default async function handler(req, res) {
     let text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     if (!text) return res.status(500).json({ error: 'Prázdná odpověď od Gemini' });
 
+    // Debug: loguj raw odpověď (odstraň po vyřešení)
+    console.log('[chat] raw Gemini text:', text.substring(0, 300));
+
     // Detekce a uložení leadu z konverzace
     const leadMatch = text.match(/\[LEAD:name=([^,\]]+),email=([^\]]+)\]/);
     if (leadMatch && process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
